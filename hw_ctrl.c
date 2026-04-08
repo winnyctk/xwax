@@ -171,16 +171,23 @@ static void* hw_thread_loop(void *arg) {
 
         last_up = b_up; last_down = b_down; last_load = b_load; last_back = b_back;
 
+        // Czyszczenie bufora przed narysowaniem nowej klatki
         memset(oled_buffer, 0, 1024);
         
         char hdr[32];
         snprintf(hdr, 32, "DECK %d/%d", hw->active_deck + 1, hw->num_decks);
         oled_draw_string(0, 0, hdr, 0);
 
+        // Wyciągamy bezpiecznie TYLKO podświetlony utwór
         struct record *current_record = selector_current(hw->sel);
         if (current_record) {
-             // Rysuj wybrany utwór na środku ekranu (y=3, czyli 3*8 pikseli w dół)
+             // Rysuj wybrany utwór na środku ekranu (y=3, czyli na wysokości 24 px) w inwersji
              oled_draw_string(0, 3, current_record->title, 1); 
+             
+             // Opcjonalnie możemy narysować artystę piętro niżej (y=4) bez inwersji:
+             if (current_record->artist) {
+                 oled_draw_string(0, 4, current_record->artist, 0);
+             }
         } else {
              oled_draw_string(0, 3, "Pusta biblioteka", 0);
         }

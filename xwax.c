@@ -41,6 +41,7 @@
 #include "track.h"
 #include "xwax.h"
 #include "hw_ctrl.h" /* Moduł OLED i GPIO */
+#include "selector.h"
 
 #define DEFAULT_OSS_BUFFERS 8
 #define DEFAULT_OSS_FRAGMENT 7
@@ -192,7 +193,9 @@ int main(int argc, const char *argv[])
     char *endptr;
     bool use_mlock, decor, use_oled;
 
+
     struct library library;
+    struct selector hw_selector; /* DODANE: nasz prywatny sprzętowy selektor */
     struct hw_state hw;
 
 #if defined WITH_OSS || WITH_ALSA
@@ -417,11 +420,12 @@ int main(int argc, const char *argv[])
     }
 
     if (use_oled) {
-        // Używamy globalnego selektora interfejsu (dostępnego w całym xwax)
-        extern struct selector library_selector; 
-        
         fprintf(stderr, "Initialising hardware OLED and GPIO control...\n");
-        hw.sel = &library_selector;
+        
+        /* Inicjujemy nasz selektor przypisany do głównej biblioteki */
+        selector_init(&hw_selector, &library); 
+        
+        hw.sel = &hw_selector;
         hw.decks = deck;
         hw.num_decks = ndeck;
         hw.active_deck = 0;
