@@ -9,48 +9,45 @@
 #include <linux/i2c-dev.h>
 
 #include "hw_ctrl.h"
-#include "font8x8_latin.h" // Ten plik zawiera basic, control i ext_latin
+#include "selector.h"
+#include "record.h"
+#include "font8x8_latin.h"
 
-// --- KONFIGURACJA ---
+/* --- KONFIGURACJA SPRZĘTOWA --- */
 #define I2C_ADDR 0x3C
-#define OLED_WIDTH 128
-#define OLED_HEIGHT 64
-
-// Piny GPIO zgodnie z Twoim opisem
 #define BTN_UP    4
 #define BTN_DOWN  17
 #define BTN_LOAD  27
 #define BTN_BACK  22
 
-// --- ZASOBY ---
 static int i2c_fd = -1;
 static uint8_t oled_buffer[1024];
 
-// Ręcznie zdefiniowane polskie znaki (których brak w font8x8_latin)
-// Mapowane na nasze wewnętrzne indeksy 256-271
+/* Tablica dla polskich znaków (Latin Extended-A) */
 static const uint8_t font8x8_pl[16][8] = {
-    {0x00, 0x3C, 0x06, 0x3E, 0x66, 0x3E, 0x06, 0x0C}, // 0: ą
-    {0x0C, 0x18, 0x3C, 0x60, 0x60, 0x66, 0x3C, 0x00}, // 1: ć
-    {0x00, 0x3C, 0x66, 0x7E, 0x60, 0x3C, 0x06, 0x0C}, // 2: ę
-    {0x60, 0x60, 0x60, 0x64, 0x68, 0x60, 0x3C, 0x00}, // 3: ł
-    {0x0C, 0x18, 0x7C, 0x66, 0x66, 0x66, 0x66, 0x00}, // 4: ń
-    {0x0C, 0x18, 0x3E, 0x60, 0x3C, 0x06, 0x7C, 0x00}, // 5: ś
-    {0x0C, 0x18, 0x7E, 0x0C, 0x18, 0x30, 0x7E, 0x00}, // 6: ź
-    {0x00, 0x18, 0x7E, 0x0C, 0x18, 0x30, 0x7E, 0x00}, // 7: ż
-    {0x3C, 0x66, 0x66, 0x7E, 0x66, 0x66, 0x66, 0x0C}, // 8: Ą
-    {0x0C, 0x18, 0x3C, 0x66, 0x60, 0x66, 0x3C, 0x00}, // 9: Ć
-    {0x7E, 0x60, 0x7C, 0x60, 0x60, 0x7E, 0x06, 0x0C}, // 10: Ę
-    {0x60, 0x60, 0x64, 0x68, 0x60, 0x60, 0x7E, 0x00}, // 11: Ł
-    {0x0C, 0x18, 0x66, 0x76, 0x7E, 0x6E, 0x66, 0x00}, // 12: Ń
-    {0x0C, 0x18, 0x3C, 0x60, 0x3C, 0x06, 0x3C, 0x00}, // 13: Ś
-    {0x0C, 0x18, 0x7E, 0x0C, 0x18, 0x30, 0x7E, 0x00}, // 14: Ź
-    {0x00, 0x18, 0x7E, 0x0C, 0x18, 0x30, 0x7E, 0x00}  // 15: Ż
+    {0x00, 0x3C, 0x06, 0x3E, 0x66, 0x3E, 0x06, 0x0C}, // ą
+    {0x0C, 0x18, 0x3C, 0x60, 0x60, 0x66, 0x3C, 0x00}, // ć
+    {0x00, 0x3C, 0x66, 0x7E, 0x60, 0x3C, 0x06, 0x0C}, // ę
+    {0x60, 0x60, 0x60, 0x64, 0x68, 0x60, 0x3C, 0x00}, // ł
+    {0x0C, 0x18, 0x7C, 0x66, 0x66, 0x66, 0x66, 0x00}, // ń
+    {0x0C, 0x18, 0x3E, 0x60, 0x3C, 0x06, 0x7C, 0x00}, // ś
+    {0x0C, 0x18, 0x7E, 0x0C, 0x18, 0x30, 0x7E, 0x00}, // ź
+    {0x00, 0x18, 0x7E, 0x0C, 0x18, 0x30, 0x7E, 0x00}, // ż
+    {0x3C, 0x66, 0x66, 0x7E, 0x66, 0x66, 0x66, 0x0C}, // Ą
+    {0x0C, 0x18, 0x3C, 0x66, 0x60, 0x66, 0x3C, 0x00}, // Ć
+    {0x7E, 0x60, 0x7C, 0x60, 0x60, 0x7E, 0x06, 0x0C}, // Ę
+    {0x60, 0x60, 0x64, 0x68, 0x60, 0x60, 0x7E, 0x00}, // Ł
+    {0x0C, 0x18, 0x66, 0x76, 0x7E, 0x6E, 0x66, 0x00}, // Ń
+    {0x0C, 0x18, 0x3C, 0x60, 0x3C, 0x06, 0x3C, 0x00}, // Ś
+    {0x0C, 0x18, 0x7E, 0x0C, 0x18, 0x30, 0x7E, 0x00}, // Ź
+    {0x00, 0x18, 0x7E, 0x0C, 0x18, 0x30, 0x7E, 0x00}  // Ż
 };
 
-// --- DRIVER OLED ---
+/* --- OBSŁUGA SSD1306 --- */
+
 static void oled_send_cmd(uint8_t cmd) {
     uint8_t buf[2] = {0x00, cmd};
-    write(i2c_fd, buf, 2);
+    if (i2c_fd >= 0) write(i2c_fd, buf, 2);
 }
 
 static int oled_init(const char *dev) {
@@ -83,9 +80,9 @@ static void oled_draw_char(int x, int y, int char_idx, int invert) {
     if (x >= 128 || y >= 8) return;
     const uint8_t *bitmap;
 
-    if (char_idx <= 127) bitmap = font8x8_basic[char_idx];
-    else if (char_idx <= 159) bitmap = font8x8_control[char_idx - 128];
-    else if (char_idx <= 255) bitmap = font8x8_ext_latin[char_idx - 160];
+    if (char_idx <= 127) bitmap = (const uint8_t*)font8x8_basic[char_idx];
+    else if (char_idx <= 159) bitmap = (const uint8_t*)font8x8_control[char_idx - 128];
+    else if (char_idx <= 255) bitmap = (const uint8_t*)font8x8_ext_latin[char_idx - 160];
     else if (char_idx <= 271) bitmap = font8x8_pl[char_idx - 256];
     else return;
 
@@ -96,7 +93,8 @@ static void oled_draw_char(int x, int y, int char_idx, int invert) {
     }
 }
 
-// --- DEKODER UTF-8 ---
+/* --- DEKODER UTF-8 --- */
+
 static int get_utf8_idx(const unsigned char **str) {
     unsigned char c1 = **str; (*str)++;
     if (c1 <= 127) return c1;
@@ -104,7 +102,6 @@ static int get_utf8_idx(const unsigned char **str) {
         unsigned char c2 = **str; if (c2) (*str)++;
         if (c1 == 0xC2) return c2;
         if (c1 == 0xC3) return c2 + 64;
-        // Polskie znaki ( Latin Extended-A )
         if (c1 == 0xC4) {
             if (c2 == 0x85) return 256; if (c2 == 0x87) return 257; if (c2 == 0x99) return 258;
             if (c2 == 0x84) return 264; if (c2 == 0x86) return 265; if (c2 == 0x98) return 266;
@@ -127,18 +124,20 @@ static void oled_draw_string(int x, int y, const char *str, int invert) {
     }
 }
 
-// --- GPIO ---
+/* --- GPIO --- */
+
 static int read_gpio(int pin) {
     char path[64], val[3];
     snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d/value", pin);
     int fd = open(path, O_RDONLY);
-    if (fd < 0) return 1; // Pull-up domyślnie wysoki
-    read(fd, val, 3);
+    if (fd < 0) return 0;
+    if (read(fd, val, 3) < 1) { close(fd); return 0; }
     close(fd);
-    return (val[0] == '0'); // 1 jeśli wciśnięty (do GND)
+    return (val[0] == '0');
 }
 
-// --- PĘTLA GŁÓWNA ---
+/* --- WĄTEK GŁÓWNY --- */
+
 static void* hw_thread_loop(void *arg) {
     struct hw_state *hw = (struct hw_state*)arg;
     oled_init("/dev/i2c-1");
@@ -154,33 +153,34 @@ static void* hw_thread_loop(void *arg) {
         if (b_up && !last_up) selector_up(hw->sel);
         if (b_down && !last_down) selector_down(hw->sel);
         if (b_back && !last_back) hw->active_deck = (hw->active_deck + 1) % hw->num_decks;
+        
         if (b_load && !last_load) {
-            struct record *r = hw->sel->entries[hw->sel->selected];
+            struct record *r = selector_get_selected(hw->sel);
             if (r) deck_load(&hw->decks[hw->active_deck], r);
         }
 
         last_up = b_up; last_down = b_down; last_load = b_load; last_back = b_back;
 
-        // Rysowanie
         memset(oled_buffer, 0, 1024);
         
-        // Nagłówek: aktywny deck
-        char hdr[16];
-        snprintf(hdr, 16, "DECK: %d", hw->active_deck + 1);
+        char hdr[32];
+        snprintf(hdr, 32, "DECK %d/%d", hw->active_deck + 1, hw->num_decks);
         oled_draw_string(0, 0, hdr, 0);
 
-        // Playlista (5 linii)
-        int start = hw->sel->selected - 2;
+        int selected = selector_get_selected_index(hw->sel);
+        int n_entries = selector_get_nb_entries(hw->sel);
+        int start = selected - 2;
         if (start < 0) start = 0;
+
         for (int i = 0; i < 5; i++) {
             int curr = start + i;
-            if (curr >= hw->sel->nb_entries) break;
-            struct record *r = hw->sel->entries[curr];
-            oled_draw_string(0, i + 2, r->title, (curr == hw->sel->selected));
+            if (curr >= n_entries) break;
+            struct record *r = selector_get_entry(hw->sel, curr);
+            if (r) oled_draw_string(0, i + 2, r->title, (curr == selected));
         }
 
         oled_send_buffer();
-        usleep(40000); // ~25 FPS
+        usleep(40000); 
     }
     return NULL;
 }
