@@ -38,19 +38,12 @@ const char* test_playlist[] = {
 };
 
 static void* hw_thread_loop(void *arg) {
+    // Inicjalizacja: OLED_ADAFRUIT_I2C_128x64 to typ 4 w demo
     if (!display.init(OLED_I2C_RESET, OLED_ADAFRUIT_I2C_128x64)) {
         return NULL;
     }
 
     display.begin();
-
-    // --- RĘCZNE ODRÓCENIE MATRYCY (LOW-LEVEL) ---
-    // Skoro biblioteka nie ma setRotation, wymuszamy to komendami na szynę I2C
-    // 0xA0/0xA1 = Mapowanie segmentów (X)
-    // 0xC0/0xC8 = Kierunek skanowania COM (Y)
-    display.sendCommand(0xA1); // Odwróć X
-    display.sendCommand(0xC8); // Odwróć Y
-
     display.clearDisplay();
     display.display();
     
@@ -63,10 +56,18 @@ static void* hw_thread_loop(void *arg) {
     while (1) {
         display.clearDisplay();
 
+        // --- WYMUSZENIE OBROTU PRZED KAŻDYM RYSOWANIEM ---
+        // Skoro setRotation nie istnieje, wysyłamy komendy SSD1306 co klatkę.
+        // To nadpisuje wszelkie resety wykonywane przez bibliotekę.
+        display.sendCommand(0xA1); // Horizontal Flip
+        display.sendCommand(0xC8); // Vertical Flip
+
+        // Nagłówek
         display.setCursor(0, 0);
-        display.print((char*)"--- TEST PLAYLIST ---");
+        display.print((char*)"--- ROTATED MODE ---");
         display.drawLine(0, 10, 127, 10, WHITE);
 
+        // Symulacja ruchu po liście
         if (++counter > 30) {
             test_selection = (test_selection + 1) % 6;
             counter = 0;
