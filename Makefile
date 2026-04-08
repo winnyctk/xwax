@@ -68,7 +68,8 @@ OBJS = controller.o \
 	timecoder.o \
 	track.o \
 	xwax.o \
-	hw_ctrl.o
+	hw_ctrl.o \
+    lib/ssd1306.o
 DEVICE_CPPFLAGS =
 DEVICE_LIBS =
 
