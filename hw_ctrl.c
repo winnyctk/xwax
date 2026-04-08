@@ -10,7 +10,7 @@
 
 #include "hw_ctrl.h"
 #include "selector.h"
-#include "record.h"
+#include "library.h"
 #include "font8x8_latin.h"
 
 /* --- KONFIGURACJA SPRZĘTOWA --- */
