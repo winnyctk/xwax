@@ -7,13 +7,14 @@
 #include <stdint.h>
 #include <sys/ioctl.h>
 #include <linux/i2c-dev.h>
+#include <sys/mman.h>
 
 #include "hw_ctrl.h"
 #include "selector.h"
 #include "library.h"
 #include "font8x8_latin.h"
 
-/* --- KONFIGURACJA SPRZĘTOWA --- */
+/* --- KONFIGURACJA --- */
 #define I2C_ADDR 0x3C
 #define BTN_UP    4
 #define BTN_DOWN  17
@@ -22,8 +23,9 @@
 
 static int i2c_fd = -1;
 static uint8_t oled_buffer[1024];
+static volatile uint32_t *gpio_reg = NULL;
 
-/* Tablica dla polskich znaków (Latin Extended-A) */
+/* Tablica dla polskich znaków */
 static const uint8_t font8x8_pl[16][8] = {
     {0x00, 0x3C, 0x06, 0x3E, 0x66, 0x3E, 0x06, 0x0C}, // ą
     {0x0C, 0x18, 0x3C, 0x60, 0x60, 0x66, 0x3C, 0x00}, // ć
@@ -58,8 +60,8 @@ static int oled_init(const char *dev) {
     uint8_t init_cmds[] = {
         0xAE, 0xD5, 0x80, 0xA8, 0x3F, 0xD3, 0x00, 0x40,
         0x8D, 0x14, 0x20, 0x00, 
-        0xA0, // Zmienione z 0xA1 (Horizontal flip)
-        0xC0, // Zmienione z 0xC8 (Vertical flip)
+        0xA1, // Segment re-map
+        0xC8, // COM scan direction
         0xDA, 0x12, 0x81, 0xCF, 0xD9, 0xF1, 0xDB, 0x40, 0xA4, 0xA6, 0xAF
     };
     for (size_t i = 0; i < sizeof(init_cmds); i++) oled_send_cmd(init_cmds[i]);
@@ -78,8 +80,13 @@ static void oled_send_buffer() {
     }
 }
 
-static void oled_draw_char(int x, int y, int char_idx, int invert) {
-    if (x >= 128 || y >= 8) return;
+/**
+ * oled_draw_char z obrotem o 90 stopni
+ * line: Linia tekstu (0-15) - biega wzdłuż dłuższego boku
+ * y_offset: Przesunięcie od boku (0-56)
+ */
+static void oled_draw_char(int line, int y_offset, int char_idx, int invert) {
+    if (line >= 16 || y_offset >= 64) return;
     const uint8_t *bitmap;
 
     if (char_idx <= 127) bitmap = (const uint8_t*)font8x8_basic[char_idx];
@@ -88,10 +95,24 @@ static void oled_draw_char(int x, int y, int char_idx, int invert) {
     else if (char_idx <= 271) bitmap = font8x8_pl[char_idx - 256];
     else return;
 
-    for (int i = 0; i < 8; i++) {
-        uint8_t col = bitmap[i];
-        if (invert) col = ~col;
-        oled_buffer[y * 128 + x + i] = col;
+    for (int i = 0; i < 8; i++) {       // i = kolumna w fontcie
+        uint8_t byte = bitmap[i];
+        for (int j = 0; j < 8; j++) {   // j = bit w bajcie
+            // Matematyczny obrót: 
+            // Nowe X (0-127) to numer linii * 8 + bit j
+            // Nowe Y (0-63) to y_offset + kolumna i
+            int target_x = line * 8 + j;
+            int target_y = y_offset + i;
+
+            int pixel = (byte >> j) & 0x01;
+            if (invert) pixel = !pixel;
+
+            if (pixel) {
+                oled_buffer[(target_y / 8) * 128 + target_x] |= (1 << (target_y % 8));
+            } else {
+                oled_buffer[(target_y / 8) * 128 + target_x] &= ~(1 << (target_y % 8));
+            }
+        }
     }
 }
 
@@ -102,53 +123,45 @@ static int get_utf8_idx(const unsigned char **str) {
     if (c1 <= 127) return c1;
     if ((c1 & 0xE0) == 0xC0) {
         unsigned char c2 = **str; if (c2) (*str)++;
-        if (c1 == 0xC2) return c2;
-        if (c1 == 0xC3) return c2 + 64;
         if (c1 == 0xC4) {
-            if (c2 == 0x85) return 256; 
-            if (c2 == 0x87) return 257; 
-            if (c2 == 0x99) return 258;
-            if (c2 == 0x84) return 264; 
-            if (c2 == 0x86) return 265; 
-            if (c2 == 0x98) return 266;
+            if (c2 == 0x85) return 256; if (c2 == 0x87) return 257; if (c2 == 0x99) return 258;
+            if (c2 == 0x84) return 264; if (c2 == 0x86) return 265; if (c2 == 0x98) return 266;
         }
         if (c1 == 0xC5) {
-            if (c2 == 0x82) return 259; 
-            if (c2 == 0x84) return 260; 
-            if (c2 == 0x9B) return 261;
-            if (c2 == 0xBA) return 262; 
-            if (c2 == 0xBC) return 263; 
-            if (c2 == 0x81) return 267;
-            if (c2 == 0x83) return 268; 
-            if (c2 == 0x9A) return 269; 
-            if (c2 == 0xB9) return 270;
+            if (c2 == 0x82) return 259; if (c2 == 0x84) return 260; if (c2 == 0x9B) return 261;
+            if (c2 == 0xBA) return 262; if (c2 == 0xBC) return 263; if (c2 == 0x81) return 267;
+            if (c2 == 0x83) return 268; if (c2 == 0x9A) return 269; if (c2 == 0xB9) return 270;
             if (c2 == 0xBB) return 271;
         }
     }
     return '?';
 }
 
-static void oled_draw_string(int x, int y, const char *str, int invert) {
+static void oled_draw_string(int line, int y_offset, const char *str, int invert) {
     const unsigned char *p = (const unsigned char *)str;
-    while (*p && x < 120) {
-        oled_draw_char(x, y, get_utf8_idx(&p), invert);
-        x += 8;
+    int current_line = line;
+    while (*p && current_line < 16) {
+        oled_draw_char(current_line, y_offset, get_utf8_idx(&p), invert);
+        current_line++;
     }
 }
 
-/* --- GPIO --- */
+/* --- GPIO (ODCZYT PAMIĘCI) --- */
 
-static int read_gpio(int pin) {
-    char path[64], val[3];
-    snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d/value", pin);
-    int fd = open(path, O_RDONLY);
-    if (fd < 0) return 0;
-    if (read(fd, val, 3) < 1) { close(fd); return 0; }
+static int init_gpiomem() {
+    int fd = open("/dev/gpiomem", O_RDWR | O_SYNC);
+    if (fd < 0) return -1;
+    gpio_reg = (uint32_t *)mmap(NULL, 0xB4, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
     close(fd);
-    return (val[0] == '0');
+    return (gpio_reg == MAP_FAILED) ? -1 : 0;
 }
 
-/* --- WĄTEK GŁÓWNY --- */
+static int read_gpio(int pin) {
+    if (!gpio_reg && init_gpiomem() < 0) return 0;
+    return ((gpio_reg[13] & (1 << pin)) == 0);
+}
+
+/* --- PĘTLA GŁÓWNA --- */
 
 static void* hw_thread_loop(void *arg) {
     struct hw_state *hw = (struct hw_state*)arg;
@@ -173,25 +186,21 @@ static void* hw_thread_loop(void *arg) {
 
         last_up = b_up; last_down = b_down; last_load = b_load; last_back = b_back;
 
-        // Czyszczenie bufora przed narysowaniem nowej klatki
         memset(oled_buffer, 0, 1024);
         
         char hdr[32];
         snprintf(hdr, 32, "DECK %d/%d", hw->active_deck + 1, hw->num_decks);
+        
+        /* Rysowanie w pionie: line=0 (sama góra), y_offset=0 (od lewej) */
         oled_draw_string(0, 0, hdr, 0);
 
-        // Wyciągamy bezpiecznie TYLKO podświetlony utwór
-        struct record *current_record = selector_current(hw->sel);
-        if (current_record) {
-             // Rysuj wybrany utwór na środku ekranu (y=3, czyli na wysokości 24 px) w inwersji
-             oled_draw_string(0, 3, current_record->title, 1); 
-             
-             // Opcjonalnie możemy narysować artystę piętro niżej (y=4) bez inwersji:
-             if (current_record->artist) {
-                 oled_draw_string(0, 4, current_record->artist, 0);
+        struct record *r = selector_current(hw->sel);
+        if (r) {
+             /* Tytuł w liniach 2-15, lekko odsunięty od góry */
+             oled_draw_string(2, 0, r->title, 1); 
+             if (r->artist) {
+                 oled_draw_string(4, 0, r->artist, 0);
              }
-        } else {
-             oled_draw_string(0, 3, "Pusta biblioteka", 0);
         }
 
         oled_send_buffer();
