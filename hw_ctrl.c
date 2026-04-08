@@ -103,13 +103,23 @@ static int get_utf8_idx(const unsigned char **str) {
         if (c1 == 0xC2) return c2;
         if (c1 == 0xC3) return c2 + 64;
         if (c1 == 0xC4) {
-            if (c2 == 0x85) return 256; if (c2 == 0x87) return 257; if (c2 == 0x99) return 258;
-            if (c2 == 0x84) return 264; if (c2 == 0x86) return 265; if (c2 == 0x98) return 266;
+            if (c2 == 0x85) return 256; 
+            if (c2 == 0x87) return 257; 
+            if (c2 == 0x99) return 258;
+            if (c2 == 0x84) return 264; 
+            if (c2 == 0x86) return 265; 
+            if (c2 == 0x98) return 266;
         }
         if (c1 == 0xC5) {
-            if (c2 == 0x82) return 259; if (c2 == 0x84) return 260; if (c2 == 0x9B) return 261;
-            if (c2 == 0xBA) return 262; if (c2 == 0xBC) return 263; if (c2 == 0x81) return 267;
-            if (c2 == 0x83) return 268; if (c2 == 0x9A) return 269; if (c2 == 0xB9) return 270;
+            if (c2 == 0x82) return 259; 
+            if (c2 == 0x84) return 260; 
+            if (c2 == 0x9B) return 261;
+            if (c2 == 0xBA) return 262; 
+            if (c2 == 0xBC) return 263; 
+            if (c2 == 0x81) return 267;
+            if (c2 == 0x83) return 268; 
+            if (c2 == 0x9A) return 269; 
+            if (c2 == 0xB9) return 270;
             if (c2 == 0xBB) return 271;
         }
     }
@@ -155,7 +165,7 @@ static void* hw_thread_loop(void *arg) {
         if (b_back && !last_back) hw->active_deck = (hw->active_deck + 1) % hw->num_decks;
         
         if (b_load && !last_load) {
-            struct record *r = selector_get_selected(hw->sel);
+            struct record *r = selector_current(hw->sel);
             if (r) deck_load(&hw->decks[hw->active_deck], r);
         }
 
@@ -167,16 +177,12 @@ static void* hw_thread_loop(void *arg) {
         snprintf(hdr, 32, "DECK %d/%d", hw->active_deck + 1, hw->num_decks);
         oled_draw_string(0, 0, hdr, 0);
 
-        int selected = selector_get_selected_index(hw->sel);
-        int n_entries = selector_get_nb_entries(hw->sel);
-        int start = selected - 2;
-        if (start < 0) start = 0;
-
-        for (int i = 0; i < 5; i++) {
-            int curr = start + i;
-            if (curr >= n_entries) break;
-            struct record *r = selector_get_entry(hw->sel, curr);
-            if (r) oled_draw_string(0, i + 2, r->title, (curr == selected));
+        struct record *current_record = selector_current(hw->sel);
+        if (current_record) {
+             // Rysuj wybrany utwór na środku ekranu (y=3, czyli 3*8 pikseli w dół)
+             oled_draw_string(0, 3, current_record->title, 1); 
+        } else {
+             oled_draw_string(0, 3, "Pusta biblioteka", 0);
         }
 
         oled_send_buffer();

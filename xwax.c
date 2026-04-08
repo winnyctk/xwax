@@ -40,7 +40,7 @@
 #include "timecoder.h"
 #include "track.h"
 #include "xwax.h"
-#include "hw_ctrl.h" /* DODANE: obsługa OLED i GPIO */
+#include "hw_ctrl.h" /* Moduł OLED i GPIO */
 
 #define DEFAULT_OSS_BUFFERS 8
 #define DEFAULT_OSS_FRAGMENT 7
@@ -80,7 +80,7 @@ static void usage(FILE *fd)
       "  --rtprio <n>        Real-time priority (0 for no priority, default %d)\n"
       "  --geometry <s>      Set display geometry (see man page)\n"
       "  --no-decor          Request a window with no decorations\n"
-      "  --oled              Enable I2C OLED display and GPIO controls\n" /* DODANE */
+      "  --oled              Enable I2C OLED display and GPIO controls\n"
       "  -h, --help          Display this message to stdout and exit\n\n",
       DEFAULT_PRIORITY);
 
@@ -190,10 +190,10 @@ int main(int argc, const char *argv[])
     int rc = -1, n, priority;
     const char *scanner, *geo;
     char *endptr;
-    bool use_mlock, decor, use_oled; /* DODANE: use_oled */
+    bool use_mlock, decor, use_oled;
 
     struct library library;
-    struct hw_state hw; /* DODANE */
+    struct hw_state hw;
 
 #if defined WITH_OSS || WITH_ALSA
     unsigned int rate;
@@ -241,7 +241,7 @@ int main(int argc, const char *argv[])
     protect = false;
     phono = false;
     use_mlock = false;
-    use_oled = false; /* DODANE */
+    use_oled = false;
 
 #if defined WITH_OSS || WITH_ALSA
     rate = 0;
@@ -278,7 +278,7 @@ int main(int argc, const char *argv[])
             usage(stdout);
             return 0;
 
-        } else if (!strcmp(argv[0], "--oled")) { /* DODANE: obsługa flagi */
+        } else if (!strcmp(argv[0], "--oled")) {
             use_oled = true;
             argv++;
             argc--;
@@ -286,7 +286,6 @@ int main(int argc, const char *argv[])
 
 #ifdef WITH_OSS
         } else if (!strcmp(argv[0], "--oss-fragment")) {
-            /* ... bez zmian ... */
             if (argc < 2) { fprintf(stderr, "-f requires an integer argument.\n"); return -1; }
             oss_fragment = strtol(argv[1], &endptr, 10);
             if (*endptr != '\0') { fprintf(stderr, "-f requires an integer argument.\n"); return -1; }
@@ -417,10 +416,12 @@ int main(int argc, const char *argv[])
         goto out_rt;
     }
 
-    /* DODANE: Inicjalizacja sprzętowego OLED i przycisków przed interfejsem */
     if (use_oled) {
+        // Używamy globalnego selektora interfejsu (dostępnego w całym xwax)
+        extern struct selector library_selector; 
+        
         fprintf(stderr, "Initialising hardware OLED and GPIO control...\n");
-        hw.sel = library_get_selector(&library);
+        hw.sel = &library_selector;
         hw.decks = deck;
         hw.num_decks = ndeck;
         hw.active_deck = 0;
