@@ -22,7 +22,7 @@ CPPFLAGS = -D_GNU_SOURCE -DEXECDIR=\"$(LIBEXECDIR)\" -DVERSION=\"1.9\"
 # -lArduiPi_OLED: Twoja nowa biblioteka
 # -lstdc++: wymagane do linkowania kodu C++ z C
 # -lunistring: wymagane przez xwax do obsługi znaków
-LDLIBS = -lArduiPi_OLED -lstdc++ -lunistring -lm `sdl2-config --libs` -lpthread
+LDLIBS = -lArduiPi_OLED -lstdc++ -lunistring -lm `sdl2-config --libs` -lSDL2_ttf -lpthread
 
 # Opcjonalna obsługa ALSA
 ifeq ($(ALSA),yes)

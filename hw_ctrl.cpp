@@ -3,16 +3,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-/* * 1. NAGŁÓWKI C++ (Musi być POZA extern "C")
- * Wczytujemy je najpierw, aby kompilator mógł użyć szablonów i klas.
+/* * 1. NAGŁÓWKI ARDUIPI / ADAFRUIT 
+ * Muszą być na samym początku, przed jakimkolwiek kodem C++.
  */
 #include "ArduiPi_OLED_lib.h"
 #include "Adafruit_GFX.h"
 #include "ArduiPi_OLED.h"
 
-/* * 2. SEKCIJA C (Struktury xwax)
- * Owinięcie w extern "C" informuje linker, że te funkcje mają nazwy 
- * zgodne ze standardem C, co pozwala reszcie projektu xwax je widzieć.
+/* * FIX: Adafruit definiuje makro 'swap', które koliduje z biblioteką 
+ * standardową C++ (używaną przez deck.h). Usuwamy je tutaj.
+ */
+#ifdef swap
+#undef swap
+#endif
+
+/* * 2. NAGŁÓWKI XWAX (C) 
+ * Zawijamy je w extern "C", aby g++ nie zmieniał nazw funkcji 
+ * i pozwolił linkerowi połączyć je z resztą projektu w C.
  */
 extern "C" {
     #include "hw_ctrl.h"
@@ -21,45 +28,43 @@ extern "C" {
     #include "deck.h"
 }
 
-// Globalna instancja wyświetlacza
+// Globalny obiekt wyświetlacza
 ArduiPi_OLED display;
 
 static void* hw_thread_loop(void *arg) {
     struct hw_state *hw = (struct hw_state*)arg;
 
-    /*
-     * Inicjalizacja OLED
-     * 0 = OLED_ADAFRUIT_I2C_128x64 (najczęstszy model)
-     */
+    // Inicjalizacja ekranu (0 = SSD1306 128x64 I2C)
+    // Jeśli używasz innego modelu, sprawdź parametry w demo ArduiPi
     if (!display.init(OLED_I2C_RESET, OLED_ADAFRUIT_I2C_128x64)) {
-        fprintf(stderr, "hw_ctrl: Nie można zainicjować OLED\n");
+        fprintf(stderr, "hw_ctrl: Nie można zainicjować OLED (check address 0x3C?)\n");
         return NULL;
     }
 
     display.begin();
     display.clearDisplay();
-    display.setTextSize(1);      // Rozmiar 1: klasyczna czcionka Adafruit 5x7 pikseli
+    display.setTextSize(1);      // Mała czcionka (5x7 pikseli)
     display.setTextColor(WHITE);
     display.display();
 
     int oled_offset = 0;
-    const int max_lines = 6;     // Liczba utworów wyświetlanych pod linią
+    const int max_lines = 6;     // Liczba linii tekstu mieszczących się pod nagłówkiem
 
     while (1) {
         display.clearDisplay();
 
-        // --- NAGŁÓWEK ---
+        // --- RYSOWANIE NAGŁÓWKA ---
         display.setCursor(0, 0);
         display.print((char*)"--- BROWSER ---");
         
-        // Rysowanie linii pod nagłówkiem (y = 10)
+        // Rysowanie linii poziomej pod nagłówkiem (y = 10)
         display.drawLine(0, 10, 127, 10, WHITE);
 
-        // Pobranie danych z biblioteki xwax
+        // Pobranie danych o aktualnym widoku z xwax
         struct index *idx = hw->sel->view_index;
         int current_sel = listbox_current(&hw->sel->records);
 
-        // Logika scrollowania listy
+        // Logika przewijania (scroll)
         if (current_sel >= 0) {
             if (current_sel < oled_offset) {
                 oled_offset = current_sel;
@@ -75,7 +80,7 @@ static void* hw_thread_loop(void *arg) {
 
             struct record *r = idx->record[item_idx];
             
-            // Pozycja Y: start od 14 (pod linią), odstęp 8 pikseli
+            // Start od y=14, każda linia ma 8 pikseli wysokości
             display.setCursor(0, 14 + (i * 8));
 
             if (item_idx == current_sel) {
@@ -84,23 +89,23 @@ static void* hw_thread_loop(void *arg) {
                 display.print((char*)"  ");
             }
 
-            // Bezpieczne kopiowanie i wyświetlanie tytułu
+            // Ograniczenie długości tekstu do ok. 20 znaków
             char buf[32];
             snprintf(buf, sizeof(buf), "%.20s", r->title);
             display.print(buf);
         }
 
-        // Fizyczny update ekranu (wysłanie bufora przez I2C)
+        // Aktualizacja fizyczna wyświetlacza
         display.display();
         
-        // Czekamy ~40ms (ok. 25 klatek na sekundę)
+        // Ok. 25 klatek na sekundę
         usleep(40000);
     }
     return NULL;
 }
 
-/* * Funkcja startowa wątku sterowania hardwarem.
- * Musi być extern "C", bo xwax.c jej szuka.
+/* * Funkcja wywoływana przez xwax.c podczas startu programu.
+ * Musi być extern "C".
  */
 extern "C" int hw_ctrl_init(struct hw_state *hw) {
     pthread_t thread;
