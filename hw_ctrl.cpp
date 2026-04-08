@@ -41,7 +41,7 @@ const char* test_playlist[] = {
 };
 
 static void* hw_thread_loop(void *arg) {
-    struct hw_state *hw = (struct hw_state*)arg;
+    // struct hw_state *hw = (struct hw_state*)arg; // Zakomentowane, by nie było warningu
 
     // Inicjalizacja ekranu
     if (!display.init(OLED_I2C_RESET, OLED_ADAFRUIT_I2C_128x64)) {
@@ -50,10 +50,10 @@ static void* hw_thread_loop(void *arg) {
 
     display.begin();
     
-    // --- OBRÓT EKRANU O 180 STOPNI ---
-    // 0 i 2 to orientacja pozioma, 1 i 3 pionowa.
-    // Jeśli 0 jest standardem, 2 to "do góry nogami".
-    display.setRotation(2); 
+    // --- SPRZĘTOWY OBRÓT O 180 STOPNI (SSD1306 COMMANDS) ---
+    // Te komendy odwracają mapowanie segmentów i skanowanie linii
+    display.sendCommand(0xA1); // Segment remap (Horizontal flip)
+    display.sendCommand(0xC8); // COM scan direction (Vertical flip)
 
     display.clearDisplay(); 
     display.display(); // Logo Adafruit zniknie natychmiast
@@ -67,7 +67,7 @@ static void* hw_thread_loop(void *arg) {
     while (1) {
         display.clearDisplay();
 
-        // Nagłówek (teraz będzie na dole fizycznym, ale u góry wizualnym)
+        // Nagłówek
         display.setCursor(0, 0);
         display.print((char*)"--- ROTATED BROWSER ---");
         display.drawLine(0, 10, 127, 10, WHITE);
