@@ -28,27 +28,28 @@ extern "C" {
 
 ArduiPi_OLED display;
 
-// Funkcja do programowego obracania bufora o 180 stopni
-void rotateBuffer180() {
-    uint8_t *buffer = display.getBuffer();
-    // SSD1306 ma 1024 bajty bufora (128x64 / 8)
-    int bufferSize = 1024; 
-    
-    // Obracamy bajty i bity "w miejscu"
-    for (int i = 0; i < bufferSize / 2; i++) {
-        uint8_t a = buffer[i];
-        uint8_t b = buffer[bufferSize - 1 - i];
+// Funkcja obracająca obraz poprzez przerysowanie pikseli
+void softwareRotation180() {
+    // Tworzymy tymczasową kopię stanów pikseli (128x64 bitów = 1024 bajty)
+    uint8_t temp[128][64]; 
 
-        // Odwracanie bitów w bajcie (bit reversal)
-        auto reverseBits = [](uint8_t x) {
-            x = ((x & 0xAA) >> 1) | ((x & 0x55) << 1);
-            x = ((x & 0xCC) >> 2) | ((x & 0x33) << 2);
-            x = ((x & 0xF0) >> 4) | ((x & 0x0F) << 4);
-            return x;
-        };
+    // 1. Zczytujemy cały ekran do tablicy
+    for (int16_t x = 0; x < 128; x++) {
+        for (int16_t y = 0; y < 64; y++) {
+            temp[x][y] = display.getPixel(x, y);
+        }
+    }
 
-        buffer[i] = reverseBits(b);
-        buffer[bufferSize - 1 - i] = reverseBits(a);
+    // 2. Czyścimy bufor
+    display.clearDisplay();
+
+    // 3. Rysujemy piksele odwrócone (127-x, 63-y)
+    for (int16_t x = 0; x < 128; x++) {
+        for (int16_t y = 0; y < 64; y++) {
+            if (temp[x][y]) {
+                display.drawPixel(127 - x, 63 - y, WHITE);
+            }
+        }
     }
 }
 
@@ -77,9 +78,9 @@ static void* hw_thread_loop(void *arg) {
     while (1) {
         display.clearDisplay();
 
-        // Rysujemy normalnie (jakby ekran był prosto)
+        // Rysujemy wszystko "normalnie"
         display.setCursor(0, 0);
-        display.print((char*)"--- SW ROTATED ---");
+        display.print((char*)"--- SW ROTATE V2 ---");
         display.drawLine(0, 10, 127, 10, WHITE);
 
         if (++counter > 30) {
@@ -94,10 +95,9 @@ static void* hw_thread_loop(void *arg) {
             display.print((char*)test_playlist[i]);
         }
 
-        // --- KLUCZ: OBRACAMY CAŁY BUFOR W PAMIĘCI ---
-        rotateBuffer180();
+        // --- MAGIA: OBRACAMY PRZEZ KOPIOWANIE PIKSELI ---
+        softwareRotation180();
 
-        // Teraz wysyłamy już obrócony bufor
         display.display();
         usleep(40000); 
     }
