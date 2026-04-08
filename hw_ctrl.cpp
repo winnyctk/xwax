@@ -28,28 +28,47 @@ extern "C" {
 
 ArduiPi_OLED display;
 
-// Funkcja obracająca obraz poprzez przerysowanie pikseli
-void softwareRotation180() {
-    // Tworzymy tymczasową kopię stanów pikseli (128x64 bitów = 1024 bajty)
-    uint8_t temp[128][64]; 
+/**
+ * WŁASNA FUNKCJA RYSOWANIA PIKSELA Z OBROTEM
+ * Ponieważ biblioteka ma zakomentowany kod rotacji, 
+ * robimy to tutaj.
+ */
+void drawPixelRotated(int16_t x, int16_t y, uint16_t color) {
+    // Obrót o 180 stopni:
+    // x = szerokość - x - 1
+    // y = wysokość - y - 1
+    display.drawPixel(127 - x, 63 - y, color);
+}
 
-    // 1. Zczytujemy cały ekran do tablicy
-    for (int16_t x = 0; x < 128; x++) {
-        for (int16_t y = 0; y < 64; y++) {
-            temp[x][y] = display.getPixel(x, y);
-        }
-    }
+/**
+ * WŁASNA FUNKCJA RYSOWANIA LINII Z OBROTEM
+ */
+void drawLineRotated(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color) {
+    display.drawLine(127 - x0, 63 - y0, 127 - x1, 63 - y1, color);
+}
 
-    // 2. Czyścimy bufor
-    display.clearDisplay();
-
-    // 3. Rysujemy piksele odwrócone (127-x, 63-y)
-    for (int16_t x = 0; x < 128; x++) {
-        for (int16_t y = 0; y < 64; y++) {
-            if (temp[x][y]) {
-                display.drawPixel(127 - x, 63 - y, WHITE);
-            }
-        }
+/**
+ * WŁASNA FUNKCJA WYŚWIETLANIA TEKSTU Z OBROTEM
+ * Biblioteka Adafruit_GFX używa drawPixel do wszystkiego.
+ * My napiszemy prosty wrapper dla tekstu.
+ */
+void printRotated(int16_t x, int16_t y, const char* text) {
+    // Musimy "ręcznie" wypisywać znaki, bo display.print używa standardowego drawPixel
+    // Używamy wbudowanej czcionki 5x7 (jeden znak zajmuje 6x8 pikseli z odstępem)
+    display.setTextSize(1);
+    display.setTextColor(WHITE);
+    
+    int16_t currX = x;
+    while (*text) {
+        // Rysujemy pojedynczy znak 'ręcznie' z obrotem
+        // drawChar to funkcja z Adafruit_GFX, która używa drawPixel()
+        // Ale uwaga: ona też rysuje "prosto". 
+        // Najskuteczniejsza metoda przy tej bibliotece to:
+        display.setCursor(127 - currX - 5, 63 - y - 7);
+        // Tu jest trik: wysyłamy komendy do sterownika TUŻ PRZED display()
+        display.print(*text);
+        text++;
+        currX += 6; 
     }
 }
 
@@ -66,11 +85,10 @@ static void* hw_thread_loop(void *arg) {
     if (!display.init(OLED_I2C_RESET, OLED_ADAFRUIT_I2C_128x64)) return NULL;
 
     display.begin();
+    
+    // To usuwa logo Adafruit
     display.clearDisplay();
     display.display();
-    
-    display.setTextSize(1);
-    display.setTextColor(WHITE);
 
     int test_selection = 0;
     int counter = 0;
@@ -78,9 +96,17 @@ static void* hw_thread_loop(void *arg) {
     while (1) {
         display.clearDisplay();
 
-        // Rysujemy wszystko "normalnie"
+        // --- KLUCZ DO OBRÓCENIA EKRANU ---
+        // Skoro biblioteka ma zakomentowany kod, wysyłamy komendy do chipu SSD1306
+        // w każdej klatce pętli, zaraz po clearDisplay().
+        display.sendCommand(0xA1); // Segment remap (Horizontal Flip)
+        display.sendCommand(0xC8); // COM scan direction (Vertical Flip)
+
+        // Teraz rysujemy już normalnie
+        display.setTextSize(1);
+        display.setTextColor(WHITE);
         display.setCursor(0, 0);
-        display.print((char*)"--- SW ROTATE V2 ---");
+        display.print((char*)"--- SYSTEM READY ---");
         display.drawLine(0, 10, 127, 10, WHITE);
 
         if (++counter > 30) {
@@ -94,9 +120,6 @@ static void* hw_thread_loop(void *arg) {
             else display.print((char*)"  ");
             display.print((char*)test_playlist[i]);
         }
-
-        // --- MAGIA: OBRACAMY PRZEZ KOPIOWANIE PIKSELI ---
-        softwareRotation180();
 
         display.display();
         usleep(40000); 
