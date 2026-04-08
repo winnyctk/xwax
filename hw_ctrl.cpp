@@ -8,7 +8,7 @@
 #include "Adafruit_GFX.h"
 #include "ArduiPi_OLED.h"
 
-// Czyścimy makra kolidujące z C++
+// Czyszczenie makr
 #ifdef min
 #undef min
 #endif
@@ -19,7 +19,6 @@
 #undef swap
 #endif
 
-// Trik dla słowa kluczowego 'new' w nagłówkach xwax
 #define new _new_ptr
 extern "C" {
     #include "hw_ctrl.h"
@@ -31,85 +30,65 @@ extern "C" {
 
 ArduiPi_OLED display;
 
-// --- DANE TESTOWE ---
+// Dane testowe
 const char* test_playlist[] = {
-    "01. Daft Punk - One More Time",
-    "02. The Chemical Brothers - Block",
-    "03. Fatboy Slim - Right Here",
-    "04. Prodigy - Firestarter",
-    "05. Kraftwerk - The Model",
-    "06. Aphex Twin - Windowlicker",
-    "07. Moby - Go",
-    "08. Underworld - Born Slippy",
-    "09. Gorillaz - Clint Eastwood",
-    "10. Justice - Genesis"
+    "DAFT PUNK - ONE MORE TIME",
+    "PRODIGY - FIRESTARTER",
+    "KRAFTWERK - THE MODEL",
+    "MOBY - GO",
+    "JUSTICE - GENESIS",
+    "UNDERWORLD - BORN SLIPPY"
 };
-int test_count = 10;
-int test_selection = 0; // Symulacja wybranego utworu
 
 static void* hw_thread_loop(void *arg) {
     struct hw_state *hw = (struct hw_state*)arg;
 
-    // Inicjalizacja ekranu (0 = SSD1306 128x64 I2C)
+    // Inicjalizacja ekranu
     if (!display.init(OLED_I2C_RESET, OLED_ADAFRUIT_I2C_128x64)) {
         return NULL;
     }
 
     display.begin();
     
-    // --- POPRAWKA: USUWANIE LOGO ADAFRUIT ---
+    // --- OBRÓT EKRANU O 180 STOPNI ---
+    // 0 i 2 to orientacja pozioma, 1 i 3 pionowa.
+    // Jeśli 0 jest standardem, 2 to "do góry nogami".
+    display.setRotation(2); 
+
     display.clearDisplay(); 
-    display.display();      // Wysłanie pustego bufora natychmiast po starcie
+    display.display(); // Logo Adafruit zniknie natychmiast
     
     display.setTextSize(1);
     display.setTextColor(WHITE);
 
-    int oled_offset = 0;
-    const int max_lines = 6;
+    int test_selection = 0;
+    int counter = 0;
 
     while (1) {
         display.clearDisplay();
 
-        // Nagłówek
+        // Nagłówek (teraz będzie na dole fizycznym, ale u góry wizualnym)
         display.setCursor(0, 0);
-        display.print((char*)"--- TEST MODE ---");
+        display.print((char*)"--- ROTATED BROWSER ---");
         display.drawLine(0, 10, 127, 10, WHITE);
 
-        // --- LOGIKA PRZEWIJANIA (TESTOWA) ---
-        // Tutaj symulujemy, że co 2 sekundy wybór schodzi niżej
-        // W prawdziwym xwax to będzie reagować na Twoją myszkę/kontroler
-        static int counter = 0;
-        if (++counter > 50) { // Co ok. 2 sekundy (50 * 40ms)
-            test_selection = (test_selection + 1) % test_count;
+        // Symulacja ruchu
+        if (++counter > 30) {
+            test_selection = (test_selection + 1) % 6;
             counter = 0;
         }
 
-        if (test_selection < oled_offset) {
-            oled_offset = test_selection;
-        } else if (test_selection >= oled_offset + max_lines) {
-            oled_offset = test_selection - max_lines + 1;
-        }
-
-        // --- RYSOWANIE LISTY ---
-        for (int i = 0; i < max_lines; i++) {
-            int item_idx = oled_offset + i;
-            if (item_idx >= test_count) break;
-
+        // Rysowanie testowej listy
+        for (int i = 0; i < 6; i++) {
             display.setCursor(0, 14 + (i * 8));
-
-            if (item_idx == test_selection) {
-                display.print((char*)"> ");
-            } else {
-                display.print((char*)"  ");
-            }
-
-            char buf[32];
-            snprintf(buf, sizeof(buf), "%.20s", test_playlist[item_idx]);
-            display.print(buf);
+            if (i == test_selection) display.print((char*)"> ");
+            else display.print((char*)"  ");
+            
+            display.print((char*)test_playlist[i]);
         }
 
         display.display();
-        usleep(40000); // 25 FPS
+        usleep(40000); 
     }
     return NULL;
 }
