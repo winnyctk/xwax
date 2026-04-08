@@ -55,7 +55,8 @@ OBJS = \
 	xwax.o \
 	hw_ctrl.o \
 	alsa.o \
-	dicer.o
+	dicer.o \
+	midi.o
 
 # Główny cel
 all: xwax
