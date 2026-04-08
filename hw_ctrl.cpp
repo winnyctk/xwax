@@ -28,20 +28,41 @@ extern "C" {
 
 ArduiPi_OLED display;
 
+// Funkcja do programowego obracania bufora o 180 stopni
+void rotateBuffer180() {
+    uint8_t *buffer = display.getBuffer();
+    // SSD1306 ma 1024 bajty bufora (128x64 / 8)
+    int bufferSize = 1024; 
+    
+    // Obracamy bajty i bity "w miejscu"
+    for (int i = 0; i < bufferSize / 2; i++) {
+        uint8_t a = buffer[i];
+        uint8_t b = buffer[bufferSize - 1 - i];
+
+        // Odwracanie bitów w bajcie (bit reversal)
+        auto reverseBits = [](uint8_t x) {
+            x = ((x & 0xAA) >> 1) | ((x & 0x55) << 1);
+            x = ((x & 0xCC) >> 2) | ((x & 0x33) << 2);
+            x = ((x & 0xF0) >> 4) | ((x & 0x0F) << 4);
+            return x;
+        };
+
+        buffer[i] = reverseBits(b);
+        buffer[bufferSize - 1 - i] = reverseBits(a);
+    }
+}
+
 const char* test_playlist[] = {
-    "DAFT PUNK - ONE MORE TIME",
-    "PRODIGY - FIRESTARTER",
-    "KRAFTWERK - THE MODEL",
-    "MOBY - GO",
-    "JUSTICE - GENESIS",
-    "UNDERWORLD - BORN SLIPPY"
+    "01. DAFT PUNK",
+    "02. PRODIGY",
+    "03. KRAFTWERK",
+    "04. MOBY",
+    "05. JUSTICE",
+    "06. UNDERWORLD"
 };
 
 static void* hw_thread_loop(void *arg) {
-    // Inicjalizacja: OLED_ADAFRUIT_I2C_128x64 to typ 4 w demo
-    if (!display.init(OLED_I2C_RESET, OLED_ADAFRUIT_I2C_128x64)) {
-        return NULL;
-    }
+    if (!display.init(OLED_I2C_RESET, OLED_ADAFRUIT_I2C_128x64)) return NULL;
 
     display.begin();
     display.clearDisplay();
@@ -56,18 +77,11 @@ static void* hw_thread_loop(void *arg) {
     while (1) {
         display.clearDisplay();
 
-        // --- WYMUSZENIE OBROTU PRZED KAŻDYM RYSOWANIEM ---
-        // Skoro setRotation nie istnieje, wysyłamy komendy SSD1306 co klatkę.
-        // To nadpisuje wszelkie resety wykonywane przez bibliotekę.
-        display.sendCommand(0xA1); // Horizontal Flip
-        display.sendCommand(0xC8); // Vertical Flip
-
-        // Nagłówek
+        // Rysujemy normalnie (jakby ekran był prosto)
         display.setCursor(0, 0);
-        display.print((char*)"--- ROTATED MODE ---");
+        display.print((char*)"--- SW ROTATED ---");
         display.drawLine(0, 10, 127, 10, WHITE);
 
-        // Symulacja ruchu po liście
         if (++counter > 30) {
             test_selection = (test_selection + 1) % 6;
             counter = 0;
@@ -80,6 +94,10 @@ static void* hw_thread_loop(void *arg) {
             display.print((char*)test_playlist[i]);
         }
 
+        // --- KLUCZ: OBRACAMY CAŁY BUFOR W PAMIĘCI ---
+        rotateBuffer180();
+
+        // Teraz wysyłamy już obrócony bufor
         display.display();
         usleep(40000); 
     }

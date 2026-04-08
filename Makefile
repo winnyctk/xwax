@@ -16,7 +16,7 @@ CFLAGS = -O3 -Wall `sdl2-config --cflags`
 CXXFLAGS = -O3 -Wall -fpermissive
 
 # Definicje systemowe
-CPPFLAGS = -D_GNU_SOURCE -DEXECDIR=\"$(LIBEXECDIR)\" -DVERSION=\"1.9\"
+CPPFLAGS = -DEXECDIR=\"/usr/local/libexec\" -DVERSION=\"1.9\"
 
 # Biblioteki (Linker)
 # -lArduiPi_OLED: Twoja nowa biblioteka
