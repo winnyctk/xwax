@@ -113,7 +113,7 @@ all:        xwax mktimecode tests
 
 .PHONY:     FORCE
 .version:   FORCE
-        ./mkversion -r
+	./mkversion -r
 
 VERSION = $(shell ./mkversion)
 
@@ -139,24 +139,24 @@ mktimecode: LDLIBS  += -lm
 
 .PHONY:     install
 install:
-        $(INSTALL) -D xwax $(DESTDIR)$(BINDIR)/xwax
-        $(INSTALL) -D scan $(DESTDIR)$(EXECDIR)/xwax-scan
-        $(INSTALL) -D import $(DESTDIR)$(EXECDIR)/xwax-import
-        $(INSTALL) -D -m 0644 xwax.1 $(DESTDIR)$(MANDIR)/man1/xwax.1
-        $(INSTALL) -D -m 0644 CHANGES $(DESTDIR)$(DOCDIR)/xwax/CHANGES
-        $(INSTALL) -D -m 0644 COPYING $(DESTDIR)$(DOCDIR)/xwax/COPYING
-        $(INSTALL) -D -m 0644 README $(DESTDIR)$(DOCDIR)/xwax/README
+	$(INSTALL) -D xwax $(DESTDIR)$(BINDIR)/xwax
+	$(INSTALL) -D scan $(DESTDIR)$(EXECDIR)/xwax-scan
+	$(INSTALL) -D import $(DESTDIR)$(EXECDIR)/xwax-import
+	$(INSTALL) -D -m 0644 xwax.1 $(DESTDIR)$(MANDIR)/man1/xwax.1
+	$(INSTALL) -D -m 0644 CHANGES $(DESTDIR)$(DOCDIR)/xwax/CHANGES
+	$(INSTALL) -D -m 0644 COPYING $(DESTDIR)$(DOCDIR)/xwax/COPYING
+	$(INSTALL) -D -m 0644 README $(DESTDIR)$(DOCDIR)/xwax/README
 
 # Distribution archive from Git source code
 
 .PHONY:     dist
 dist:       .version
-        ./mkdist $(VERSION)
+	./mkdist $(VERSION)
 
 # Editor tags files
 
 TAGS:       $(OBJS:.o=.c)
-        etags $^
+	etags $^
 
 # Manual tests
 
@@ -191,10 +191,10 @@ tests/ttf:  LDLIBS += $(SDL_LIBS)
 
 .PHONY:     clean
 clean:
-        rm -f xwax \
-            $(OBJS) $(DEPS) \
-            $(TESTS) $(TEST_OBJS) \
-            mktimecode mktimecode.o \
-            TAGS
+	rm -f xwax \
+	    $(OBJS) $(DEPS) \
+	    $(TESTS) $(TEST_OBJS) \
+	    mktimecode mktimecode.o \
+	    TAGS
 
 -include $(DEPS)
