@@ -45,7 +45,7 @@ CFLAGS += -Wall
 CPPFLAGS += -MMD -MP
 LDFLAGS ?= -O3
 LDFLAGS += -L/usr/local/lib
-LDLIBS += -lssd1306_i2c -lunistring -lm
+LDLIBS += -lArduiPi_OLED -lunistring -lm
 
 
 
