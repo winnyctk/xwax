@@ -44,8 +44,10 @@ CFLAGS ?= -O3
 CFLAGS += -Wall
 CPPFLAGS += -MMD -MP
 LDFLAGS ?= -O3
-LDFLAGS += -lssd1306 -lunistring -lm
+LDFLAGS += -L/usr/local/lib
 LDLIBS += -lssd1306 -lunistring -lm
+
+
 
 # Core objects and libraries
 
