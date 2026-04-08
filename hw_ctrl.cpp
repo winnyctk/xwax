@@ -1,43 +1,47 @@
-/* 1. NAJPIERW WSZYSTKIE NAGŁÓWKI (C++ i C) */
 #include <pthread.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 
-// Nagłówki ekranu
+// 1. WCZYTUJEMY ARDUIPI
 #include "ArduiPi_OLED_lib.h"
 #include "Adafruit_GFX.h"
 #include "ArduiPi_OLED.h"
 
-/* FIX: Adafruit definiuje makro 'swap', które psuje standardowe biblioteki C++.
-   Musimy je usunąć zanim kompilator pójdzie dalej. */
+// 2. CZYŚCIMY PSUJĄCE MAKRA (zanim wczytamy resztę systemu)
+#ifdef min
+#undef min
+#endif
+#ifdef max
+#undef max
+#endif
 #ifdef swap
 #undef swap
 #endif
 
-/* 2. TERAZ NAGŁÓWKI PROJEKTU XWAX */
-/* Musimy je wczytać tutaj, ale poza blokiem extern "C", 
-   żeby ich wewnętrzne include'y (jak math.h) nie wywalały błędów. */
-#include "hw_ctrl.h"
-#include "selector.h"
-#include "library.h"
-#include "deck.h"
+// 3. ROZWIĄZANIE PROBLEMU SŁOWA 'new'
+// Przebiegle zamieniamy słowo 'new' na coś innego tylko na czas czytania nagłówków xwax
+#define new _new_ptr
 
-/* 3. DOPIERO TERAZ OTWIERAMY BLOK EXTERN "C" */
-/* Deklarujemy tylko te funkcje, które linker musi widzieć jako C. */
 extern "C" {
-    int hw_ctrl_init(struct hw_state *hw);
-    struct record* selector_current(struct selector *sel);
-    // Jeśli kompilator będzie narzekał na brak innych funkcji, dopisz je tutaj.
+    #include "hw_ctrl.h"
+    #include "selector.h"
+    #include "library.h"
+    #include "deck.h"
 }
 
+// Przywracamy 'new' dla C++
+#undef new
+
+// Globalny obiekt wyświetlacza
 ArduiPi_OLED display;
 
 static void* hw_thread_loop(void *arg) {
     struct hw_state *hw = (struct hw_state*)arg;
 
+    // Inicjalizacja ekranu
     if (!display.init(OLED_I2C_RESET, OLED_ADAFRUIT_I2C_128x64)) {
+        fprintf(stderr, "OLED init failed\n");
         return NULL;
     }
 
@@ -52,7 +56,6 @@ static void* hw_thread_loop(void *arg) {
 
     while (1) {
         display.clearDisplay();
-
         display.setCursor(0, 0);
         display.print((char*)"--- BROWSER ---");
         display.drawLine(0, 10, 127, 10, WHITE);
@@ -86,7 +89,6 @@ static void* hw_thread_loop(void *arg) {
     return NULL;
 }
 
-// Implementacja funkcji inicjującej
 extern "C" int hw_ctrl_init(struct hw_state *hw) {
     pthread_t thread;
     return pthread_create(&thread, NULL, hw_thread_loop, (void*)hw);
