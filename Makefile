@@ -53,7 +53,9 @@ OBJS = \
 	timecoder.o \
 	track.o \
 	xwax.o \
-	hw_ctrl.o
+	hw_ctrl.o \
+	alsa.o \
+	dicer.o
 
 # Główny cel
 all: xwax
